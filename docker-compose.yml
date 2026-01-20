@@ -1,0 +1,55 @@
+version: '3.8'
+services:
+  # 1. Broker Service (Redpanda)
+  redpanda:
+    image: docker.redpanda.com/redpandadata/redpanda:latest
+    container_name: firehose_broker
+    command:
+      - redpanda start
+      - --smp 1 # Limit to 1 CPU core (dev environment)
+      - --memory 1G
+      - --overprovisioned
+      - --kafka-addr internal://0.0.0.0:9092,external://0.0.0.0:19092
+      - --advertise-kafka-addr internal://redpanda:9092,external://localhost:19092
+      - --pandaproxy-addr internal://0.0.0.0:8082,external://0.0.0.0:18082
+      - --advertise-pandaproxy-addr internal://redpanda:8082,external://localhost:18082
+      - --schema-registry-addr internal://0.0.0.0:8081,external://0.0.0.0:18081
+      - --rpc-addr 0.0.0.0:33145
+      - --advertise-rpc-addr redpanda:33145
+
+    ports:
+      - "18081:18081"
+      - "18082:18082"
+      - "19092:19092" # External Kafka Port
+      - "19644:9644"
+
+    volumes:
+      - redpanda_data:/var/lib/redpanda/data
+
+  # 2. UI (Redpanda console)
+  console:
+    image: docker.redpanda.com/redpandadata/console:latest
+    container_name: firehose_console
+    environment:
+      KAFKA_BROKERS: redpanda:9092
+    ports:
+      - "8080:8080"
+    depends_on:
+      - redpanda
+
+  # 3. Database (TimescaleDB - Postgres for Time Series)
+  timescaledb:
+    image: timescale/timescaledb:latest-pg16
+    container_name: firehose_db
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: firehose
+    ports:
+      - "5434:5432"
+    volumes:
+      - timescaledb_data:/var/lib/postgresql/data
+
+volumes:
+  redpanda_data:
+  timescaledb_data:
